@@ -455,6 +455,31 @@ def _cover_java(root: Path, files: list[Path]) -> None:
             _warn(f"Java coverage exited {code} in {module}. Java coverage will score 0%.")
 
 
+_SBT = ["sbt", "-batch", "clean", "coverage", "test", "coverageReport"]
+
+
+def _remove_stale_scoverage(module: Path) -> None:
+    pattern = "target/scala-*/coverage-report"
+    for found in [*module.glob(pattern), *module.glob(f"*/{pattern}"), *module.glob(f"*/*/{pattern}")]:
+        _clean_dir(found)
+
+
+def _cover_scala2(root: Path, files: list[Path]) -> None:
+    modules = _modules_with(files, ".scala", "build.sbt", root)
+    if not modules:
+        _warn("No build.sbt; skipping Scala2 coverage.")
+        return
+    for module in modules:
+        _remove_stale_scoverage(module)
+        code = run_shell(_SBT, module)
+        if code != 0:
+            _warn(
+                f"Scala2 coverage exited {code} in {module}. "
+                "It needs the sbt-scoverage plugin in project/plugins.sbt. "
+                "Scala2 coverage will score 0%."
+            )
+
+
 def _cover_go(root: Path, files: list[Path]) -> None:
     modules = _modules_with(files, ".go", "go.mod", root)
     if not modules:
@@ -593,4 +618,6 @@ def run_coverage(root: Path, files: list[Path], command: str | None) -> int:
         _cover_python(root, files)
     if "rust" in languages:
         _cover_rust(root, files)
+    if "scala2" in languages:
+        _cover_scala2(root, files)
     return 0

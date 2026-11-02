@@ -547,3 +547,58 @@ def test_vitest_install_restores_manifests_when_install_changes_them(tmp_path, m
 def test_python_sources_name_a_top_level_module_without_its_suffix(tmp_path):
     module = tmp_path / "carddav.py"
     assert python_sources(tmp_path, [module, tmp_path / "test_carddav.py"]) == "carddav"
+
+
+SBT = ["sbt", "-batch", "clean", "coverage", "test", "coverageReport"]
+
+
+def test_scala_runs_sbt_scoverage_in_the_nearest_build(tmp_path, monkeypatch):
+    commands = []
+    monkeypatch.setattr(
+        "crapper.runners.run_shell", lambda command, cwd: commands.append((command, cwd)) or 0
+    )
+    _write(tmp_path, "build.sbt", 'scalaVersion := "2.13.18"\n')
+    core = _write(tmp_path, "core/src/main/scala/demo/Calc.scala", "object Calc\n")
+    util = _write(tmp_path, "util/src/main/scala/demo/Util.scala", "object Util\n")
+    stale = _write(tmp_path, "core/target/scala-2.13/coverage-report/cobertura.xml", "old")
+    other = _write(tmp_path, "core/target/scala-2.13/scoverage-report/scoverage.xml", "keep")
+    run_coverage(tmp_path, [core, util], None)
+    assert commands == [(SBT, tmp_path.resolve())]
+    assert not stale.exists()
+    assert other.exists()
+
+
+def test_scala_builds_with_their_own_build_sbt_run_separately(tmp_path, monkeypatch):
+    commands = []
+    monkeypatch.setattr(
+        "crapper.runners.run_shell", lambda command, cwd: commands.append((command, cwd)) or 0
+    )
+    _write(tmp_path, "one/build.sbt", "\n")
+    _write(tmp_path, "two/build.sbt", "\n")
+    one = _write(tmp_path, "one/src/main/scala/A.scala", "object A\n")
+    two = _write(tmp_path, "two/src/main/scala/B.scala", "object B\n")
+    run_coverage(tmp_path, [one, two], None)
+    assert [cwd for _command, cwd in commands] == [
+        (tmp_path / "one").resolve(),
+        (tmp_path / "two").resolve(),
+    ]
+
+
+def test_scala_without_build_sbt_is_skipped(tmp_path, monkeypatch, capsys):
+    commands = []
+    monkeypatch.setattr("crapper.runners.run_shell", lambda *args: commands.append(args) or 0)
+    source = _write(tmp_path, "src/main/scala/A.scala", "object A\n")
+    run_coverage(tmp_path, [source], None)
+    assert commands == []
+    assert "No build.sbt; skipping Scala2 coverage." in capsys.readouterr().err
+
+
+def test_a_failed_sbt_run_points_at_the_scoverage_plugin(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr("crapper.runners.run_shell", lambda *_args: 1)
+    _write(tmp_path, "build.sbt", "\n")
+    source = _write(tmp_path, "src/main/scala/A.scala", "object A\n")
+    run_coverage(tmp_path, [source], None)
+    err = capsys.readouterr().err
+    assert "Scala2 coverage exited 1" in err
+    assert "sbt-scoverage" in err
+    assert "will score 0%" in err

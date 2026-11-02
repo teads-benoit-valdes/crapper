@@ -1,8 +1,10 @@
 """Load Cloverage, LCOV, JaCoCo, and Go coverage profiles.
 
 Clojure prefers Cloverage's per-line form counts, then LCOV. Java uses JaCoCo
-instruction counters. Go uses statement profiles. LCOV scores a function by
-its BRDA branch records when it has any, and by line hits otherwise.
+instruction counters. Go uses statement profiles. Scala2 reads scoverage's
+Cobertura XML as statements per line, scored like LCOV lines. LCOV scores a
+function by its BRDA branch records when it has any, and by line hits
+otherwise.
 `percent_for` returns None when the file is absent; analysis turns that into 0%.
 """
 
@@ -278,6 +280,54 @@ def parse_lcov(text: str) -> dict[str, FileCoverage]:
     return out
 
 
+def _cobertura_source(sources: list[str], filename: str) -> str:
+    """The path of a Cobertura class file.
+
+    `filename` is relative to one of the `<source>` dirs. scoverage also lists
+    a `--source` entry that is not a dir, so only absolute dirs are tried: the
+    one that holds the file, else the first.
+    """
+
+    dirs = [text for text in sources if Path(text).is_absolute()]
+    for directory in dirs:
+        candidate = Path(directory) / filename
+        if candidate.is_file():
+            return candidate.as_posix()
+    if dirs:
+        return (Path(dirs[0]) / filename).as_posix()
+    return filename
+
+
+def _add_cobertura_line(record: FileCoverage, line) -> None:
+    number = int(line.get("number") or "0")
+    covered, total = record.get(number, (0, 0))
+    hit = 1 if int(line.get("hits") or "0") > 0 else 0
+    record[number] = (covered + hit, total + 1)
+
+
+def parse_cobertura(text: str) -> dict[str, FileCoverage]:
+    """Statements per line from scoverage's `cobertura.xml`, keyed by file.
+
+    scoverage writes one `<line>` per statement, so a line can repeat. Only the
+    class-level `<lines>` are read: the method-level ones repeat them, and
+    scoverage drops or misattributes some methods. Its `branch="true"` marks a
+    branch body, not a taken/not-taken pair, so no branch counts are kept.
+    """
+
+    root = ET.fromstring(_DOCTYPE.sub("", text))
+    sources = [(node.text or "").strip() for node in root.iter("source")]
+    out: dict[str, FileCoverage] = {}
+    for class_node in root.iter("class"):
+        lines = class_node.find("lines")
+        if lines is None:
+            continue
+        key = _cobertura_source(sources, class_node.get("filename", ""))
+        record = out.setdefault(key, FileCoverage())
+        for line in lines.findall("line"):
+            _add_cobertura_line(record, line)
+    return out
+
+
 def branch_percent(record, start: int, end: int) -> float | None:
     """Branch coverage for a function, or None when that span has no branches."""
 
@@ -510,10 +560,20 @@ def _merge_texts(paths: list[Path]) -> list[str]:
     return texts
 
 
+def _cobertura_paths(root: Path) -> list[Path]:
+    pattern = "target/scala-*/coverage-report/cobertura.xml"
+    paths = list(root.glob(pattern))
+    paths.extend(root.glob(f"*/{pattern}"))
+    paths.extend(root.glob(f"*/*/{pattern}"))
+    return paths
+
+
 def _merge_lcov(root: Path) -> dict[str, dict[int, tuple[int, int]]]:
     merged: dict[str, dict[int, tuple[int, int]]] = {}
     for text in _merge_texts(_lcov_paths(root)):
         merged.update(parse_lcov(text))
+    for text in _merge_texts(_cobertura_paths(root)):
+        merged.update(parse_cobertura(text))
     return merged
 
 

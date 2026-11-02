@@ -2,6 +2,7 @@ from crapper.coverage import (
     CoverageBundle,
     go_percent,
     load_bundle,
+    parse_cobertura,
     parse_form_coverage,
     parse_go_profile,
     parse_jacoco_index,
@@ -158,3 +159,111 @@ def test_load_bundle_merges_each_report(tmp_path):
     assert bundle.percent_for(function(start_line=3, end_line=4)) == 50.0
     assert bundle.go_profile is not None
     assert bundle.jacoco is not None
+
+
+COBERTURA = """<?xml version="1.0"?>
+<!DOCTYPE coverage SYSTEM "https://cobertura.sourceforge.net/xml/coverage-04.dtd">
+<coverage line-rate="0.5" version="1.0">
+    <sources>
+        <source>--source</source>
+        <source>/proj/src/main/scala</source>
+    </sources>
+    <packages>
+        <package name="demo">
+            <classes>
+                <class name="demo.Calc" filename="demo/Calc.scala">
+                    <methods>
+                        <method name="demo/Calc/classify" signature="()V">
+                            <lines>
+                                <line number="7" hits="0" branch="false"/>
+                                <line number="7" hits="0" branch="false"/>
+                            </lines>
+                        </method>
+                    </methods>
+                    <lines>
+                        <line number="6" hits="1" branch="false"/>
+                        <line number="6" hits="0" branch="true"/>
+                        <line number="7" hits="2" branch="false"/>
+                        <line number="9" hits="0" branch="false"/>
+                    </lines>
+                </class>
+                <class name="demo.Calc$" filename="demo/Calc.scala">
+                    <methods/>
+                    <lines>
+                        <line number="12" hits="1" branch="false"/>
+                    </lines>
+                </class>
+            </classes>
+        </package>
+    </packages>
+</coverage>
+"""
+
+
+def scala_function(**kwargs):
+    defaults = dict(
+        name="classify",
+        namespace="demo.Calc",
+        start_line=6,
+        end_line=9,
+        path="src/main/scala/demo/Calc.scala",
+        language="scala2",
+    )
+    defaults.update(kwargs)
+    return function(**defaults)
+
+
+def test_cobertura_counts_statements_per_line_from_the_class_lines():
+    parsed = parse_cobertura(COBERTURA)
+    assert list(parsed) == ["/proj/src/main/scala/demo/Calc.scala"]
+    record = parsed["/proj/src/main/scala/demo/Calc.scala"]
+    # Method-level lines repeat the class lines and must not be counted twice.
+    assert dict(record) == {6: (1, 2), 7: (1, 1), 9: (0, 1), 12: (1, 1)}
+    # scoverage branch="true" marks a branch body, not a taken/not-taken pair.
+    assert record.branches == {}
+
+
+def test_cobertura_picks_the_source_dir_that_holds_the_file(tmp_path):
+    real = tmp_path / "core" / "src" / "main" / "scala"
+    (real / "demo").mkdir(parents=True)
+    (real / "demo" / "Calc.scala").write_text("object Calc\n", encoding="utf-8")
+    text = COBERTURA.replace("/proj/src/main/scala", f"/elsewhere</source><source>{real}")
+    parsed = parse_cobertura(text)
+    assert list(parsed) == [(real / "demo" / "Calc.scala").as_posix()]
+
+
+def test_cobertura_without_an_absolute_source_dir_keeps_the_relative_name():
+    text = COBERTURA.replace("/proj/src/main/scala", "src/main/scala")
+    assert list(parse_cobertura(text)) == ["demo/Calc.scala"]
+
+
+def test_scala_coverage_is_the_statement_ratio_over_the_function_lines():
+    bundle = CoverageBundle(lcov=parse_cobertura(COBERTURA))
+    # Lines 6-9: 2 of 4 statements ran.
+    assert bundle.percent_for(scala_function()) == 50.0
+    assert bundle.percent_for(scala_function(start_line=9, end_line=9)) == 0.0
+    assert bundle.percent_for(scala_function(path="src/main/scala/demo/Other.scala")) is None
+
+
+def test_load_bundle_reads_scoverage_reports_of_every_module(tmp_path):
+    for report in (
+        "target/scala-2.13/coverage-report/cobertura.xml",
+        "core/target/scala-2.12/coverage-report/cobertura.xml",
+        "libs/util/target/scala-2.13/coverage-report/cobertura.xml",
+    ):
+        path = tmp_path / report
+        path.parent.mkdir(parents=True)
+        module = report.split("/")[0]
+        path.write_text(
+            COBERTURA.replace("/proj/src/main/scala", f"/proj/{module}/src/main/scala"),
+            encoding="utf-8",
+        )
+    elsewhere = tmp_path / "other" / "coverage" / "cobertura.xml"
+    elsewhere.parent.mkdir(parents=True)
+    elsewhere.write_text(COBERTURA, encoding="utf-8")
+    bundle = load_bundle(tmp_path)
+    assert sorted(bundle.lcov) == [
+        "/proj/core/src/main/scala/demo/Calc.scala",
+        "/proj/libs/src/main/scala/demo/Calc.scala",
+        "/proj/target/src/main/scala/demo/Calc.scala",
+    ]
