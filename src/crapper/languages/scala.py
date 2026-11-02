@@ -1,13 +1,16 @@
-"""Scala2 methods and cyclomatic complexity.
+"""Scala 2 and Scala 3 methods and cyclomatic complexity.
 
 Decision points are `if`, `while`, `do ... while`, `for`, each `case` clause
 (match arms, `catch` cases, and partial functions), each guard (`case x if`
-and `for (x <- xs if ...)`), and `&&` / `||`, which Scala2 parses as infix
-expressions. Nested defs, lambdas, and anonymous classes are part of the def
-that contains them, so only a member of a class, object, trait, or package
-object is an entry. Abstract members have no body and are not entries.
+and `for (x <- xs if ...)`), and `&&` / `||`, which Scala parses as infix
+expressions. Braced and indentation-based code give the same nodes, so Scala 3
+syntax needs no extra rules. Nested defs, lambdas, and anonymous classes are
+part of the def that contains them, so only a member of a class, object, trait,
+package object, enum, or named given, an extension method, or a top-level def
+is an entry. Abstract members have no body and are not entries.
 Methods are namespaced by the package and the enclosing types
-(`pkg.Outer.Inner`) so uml-viewer can attach scores to that type.
+(`pkg.Outer.Inner`) so uml-viewer can attach scores to that type. An anonymous
+given has no name, so its methods get the enclosing namespace.
 """
 
 from crapper.languages.treesitter import (
@@ -28,7 +31,14 @@ _DECISIONS = {
     "guard",
 }
 _LOGIC = {"&&", "||"}
-_TYPES = {"class_definition", "object_definition", "trait_definition", "package_object"}
+_TYPES = {
+    "class_definition",
+    "object_definition",
+    "trait_definition",
+    "package_object",
+    "enum_definition",
+    "given_definition",
+}
 _NAME_TYPES = {"identifier", "operator_identifier"}
 
 
@@ -111,7 +121,7 @@ def _record(data: bytes, node, leading: list[str], path: str) -> Function | None
         start_line=start_line(node),
         end_line=_end_line(data, node),
         path=path,
-        language="scala2",
+        language="scala",
     )
 
 

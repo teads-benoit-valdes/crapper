@@ -9,7 +9,7 @@ _SOURCES = [
     ("typescript", "export function view() { return 1 }\n", "src/ui.ts", "view"),
     ("python", "def run():\n    return 1\n", "src/app.py", "run"),
     ("rust", "pub fn open() {}\n", "src/lib.rs", "open"),
-    ("scala2", "object Board { def place(): Int = 1 }\n", "Board.scala", "place"),
+    ("scala", "object Board { def place(): Int = 1 }\n", "Board.scala", "place"),
 ]
 
 

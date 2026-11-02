@@ -20,7 +20,7 @@ EXTENSIONS = {
     ".cjs": "typescript",
     ".rs": "rust",
     ".py": "python",
-    ".scala": "scala2",
+    ".scala": "scala",
 }
 
 SKIP_DIRS = {

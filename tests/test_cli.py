@@ -20,7 +20,7 @@ def test_language_detection():
     assert language_of("src/app.cjs") == "typescript"
     assert language_of("src/app.jsx") == "typescript"
     assert language_of("src/lib.rs") == "rust"
-    assert language_of("src/main/scala/demo/Calc.scala") == "scala2"
+    assert language_of("src/main/scala/demo/Calc.scala") == "scala"
     assert language_of("build.sbt") is None
     assert language_of("src/crapper/cli.py") == "python"
     assert language_of("types.d.ts") is None

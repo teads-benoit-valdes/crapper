@@ -5,7 +5,7 @@ from crapper.languages.golang import functions_in_source as go_functions
 from crapper.languages.java import functions_in_source as java_functions
 from crapper.languages.python import functions_in_source as python_functions
 from crapper.languages.rust import functions_in_source as rust_functions
-from crapper.languages.scala2 import functions_in_source as scala2_functions
+from crapper.languages.scala import functions_in_source as scala_functions
 from crapper.languages.typescript import functions_in_source as typescript_functions
 from crapper.model import Function
 
@@ -16,7 +16,7 @@ _READERS = {
     "typescript": typescript_functions,
     "python": python_functions,
     "rust": rust_functions,
-    "scala2": scala2_functions,
+    "scala": scala_functions,
 }
 
 

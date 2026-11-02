@@ -590,7 +590,7 @@ def test_scala_without_build_sbt_is_skipped(tmp_path, monkeypatch, capsys):
     source = _write(tmp_path, "src/main/scala/A.scala", "object A\n")
     run_coverage(tmp_path, [source], None)
     assert commands == []
-    assert "No build.sbt; skipping Scala2 coverage." in capsys.readouterr().err
+    assert "No build.sbt; skipping Scala coverage." in capsys.readouterr().err
 
 
 def test_a_failed_sbt_run_points_at_the_scoverage_plugin(tmp_path, monkeypatch, capsys):
@@ -599,6 +599,6 @@ def test_a_failed_sbt_run_points_at_the_scoverage_plugin(tmp_path, monkeypatch, 
     source = _write(tmp_path, "src/main/scala/A.scala", "object A\n")
     run_coverage(tmp_path, [source], None)
     err = capsys.readouterr().err
-    assert "Scala2 coverage exited 1" in err
+    assert "Scala coverage exited 1" in err
     assert "sbt-scoverage" in err
     assert "will score 0%" in err

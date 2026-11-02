@@ -1,6 +1,6 @@
 # crapper
 
-CRAP scores for Clojure, Java, Go, TypeScript, Rust, Python, and Scala2. One run detects the language of each source file, applies that language's complexity and coverage rules, and writes the snapshot [uml-viewer](https://github.com/unclebob/uml-viewer) already reads.
+CRAP scores for Clojure, Java, Go, TypeScript, Rust, Python, and Scala 2 and 3. One run detects the language of each source file, applies that language's complexity and coverage rules, and writes the snapshot [uml-viewer](https://github.com/unclebob/uml-viewer) already reads.
 
 The formula is the one from [crap4clj](https://github.com/unclebob/crap4clj), [crap4java](https://github.com/unclebob/crap4java), and [crap4go](https://github.com/unclebob/crap4go):
 
@@ -52,7 +52,7 @@ uml-viewer groups entries by `:namespace` and joins each operation on `:name`. `
 | TypeScript | the dotted module path, or `module.Class` | the function or method name |
 | Rust | `crate::module`, or `crate::module::Type` | the function or method name |
 | Python | the dotted module path, or `module.Class` | the function or method name |
-| Scala2 | `package.Type`, or `package.Outer.Inner` | the method name |
+| Scala | `package.Type`, or `package.Outer.Inner` (also enums and named givens) | the method name |
 
 Rename or move is a new entry. There is no identity matching across runs.
 
@@ -70,7 +70,7 @@ Rust counts `if`, loops, each `match` arm, `?`, and `&&` / `||`. `mod tests` is 
 
 Python counts `if`, `elif`, `for`, `while`, `except`, each `match` case, a comprehension filter, a conditional expression, and each `and` / `or`. Nested functions stay inside the enclosing function. Coverage is LCOV from `coverage.py`, running pytest when the project uses it and `unittest` otherwise. `coverage` and `pytest` are installed into the project's interpreter when they are missing.
 
-Scala2 counts `if`, `while`, `do ... while`, `for`, each `case` clause (match arms, `catch` cases, partial functions), each guard (`case x if`, `for (x <- xs if ...)`), and `&&` / `||`. Members of a class, object, trait, or package object are entries; abstract members are not. Nested defs, lambdas, and anonymous classes are charged to the def that contains them. Coverage is [sbt-scoverage](https://github.com/scoverage/sbt-scoverage) statement coverage, read from its Cobertura XML and scored by the statements on the lines of each def. The project needs the plugin in `project/plugins.sbt`. Scala 3 syntax is not supported, only Scala2.
+Scala counts `if`, `while`, `do ... while`, `for`, each `case` clause (match arms, `catch` cases, partial functions), each guard (`case x if`, `for (x <- xs if ...)`), and `&&` / `||`. Members of a class, object, trait, package object, enum, or `given`, extension methods, and top-level defs are entries; abstract members are not. Nested defs, lambdas, and anonymous classes are charged to the def that contains them. Coverage is [sbt-scoverage](https://github.com/scoverage/sbt-scoverage) statement coverage, read from its Cobertura XML and scored by the statements on the lines of each def. The project needs the plugin in `project/plugins.sbt`. Scala 2 and Scala 3 are scored the same way, including indentation-based syntax, `enum`, `given`, extension methods, and top-level defs; one run does not tell the two apart. `enum` and named `given` members are namespaced by that name; an anonymous `given` has no name, so its members take the enclosing namespace.
 
 ## Coverage commands
 
@@ -84,7 +84,7 @@ By default a run deletes the previous report for each language it is about to me
 | TypeScript | `npm run coverage`, or Vitest `--coverage`, or `npx c8 ... npm test` | `coverage/lcov.info` or `target/coverage/typescript/lcov.info` |
 | Rust | `cargo llvm-cov` or `cargo tarpaulin`, per Cargo package | `target/coverage/rust/lcov.info` |
 | Python | `coverage run` with pytest or unittest, then `coverage lcov` | `target/coverage/python/lcov.info` |
-| Scala2 | `sbt -batch clean coverage test coverageReport` in the nearest directory with `build.sbt` | `target/scala-*/coverage-report/cobertura.xml`, per sbt project |
+| Scala | `sbt -batch clean coverage test coverageReport` in the nearest directory with `build.sbt` | `target/scala-*/coverage-report/cobertura.xml`, per sbt project |
 
 A missing tool or a failed test run scores that language at 0% and still writes the snapshot. Pass `--coverage-command` to replace those defaults with one command of your own. `--no-coverage` is the run that leaves coverage and CRAP as N/A.
 

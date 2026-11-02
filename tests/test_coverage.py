@@ -207,7 +207,7 @@ def scala_function(**kwargs):
         start_line=6,
         end_line=9,
         path="src/main/scala/demo/Calc.scala",
-        language="scala2",
+        language="scala",
     )
     defaults.update(kwargs)
     return function(**defaults)
@@ -267,3 +267,65 @@ def test_load_bundle_reads_scoverage_reports_of_every_module(tmp_path):
         "/proj/libs/src/main/scala/demo/Calc.scala",
         "/proj/target/src/main/scala/demo/Calc.scala",
     ]
+
+
+# Trimmed from sbt-scoverage on Scala 3.3.4: top-level defs and enums get their
+# own classes (`Calc$package`, `Color`) that all point at the same source file.
+COBERTURA_SCALA3 = """<?xml version="1.0"?>
+<coverage line-rate="0.59" version="1.0">
+    <sources>
+        <source>--source</source>
+        <source>/proj/src/main/scala</source>
+    </sources>
+    <packages>
+        <package name="demo">
+            <classes>
+                <class name="demo.Calc$package" filename="demo/Calc.scala">
+                    <methods/>
+                    <lines>
+                        <line number="17" hits="1" branch="false"/>
+                        <line number="19" hits="1" branch="true"/>
+                        <line number="21" hits="0" branch="true"/>
+                    </lines>
+                </class>
+                <class name="demo.Color" filename="demo/Calc.scala">
+                    <methods/>
+                    <lines>
+                        <line number="5" hits="1" branch="false"/>
+                        <line number="6" hits="1" branch="true"/>
+                        <line number="7" hits="0" branch="true"/>
+                    </lines>
+                </class>
+            </classes>
+        </package>
+    </packages>
+</coverage>
+"""
+
+
+def test_scala_3_classes_of_one_file_share_its_line_coverage():
+    parsed = parse_cobertura(COBERTURA_SCALA3)
+    assert list(parsed) == ["/proj/src/main/scala/demo/Calc.scala"]
+    assert dict(parsed["/proj/src/main/scala/demo/Calc.scala"]) == {
+        5: (1, 1),
+        6: (1, 1),
+        7: (0, 1),
+        17: (1, 1),
+        19: (1, 1),
+        21: (0, 1),
+    }
+
+
+def test_scala_3_enum_and_top_level_defs_are_scored_by_their_lines():
+    bundle = CoverageBundle(lcov=parse_cobertura(COBERTURA_SCALA3))
+    enum_method = scala_function(name="isWarm", namespace="demo.Color", start_line=5, end_line=7)
+    top_level = scala_function(name="topLevel", namespace="demo", start_line=17, end_line=21)
+    assert round(bundle.percent_for(enum_method), 1) == 66.7
+    assert round(bundle.percent_for(top_level), 1) == 66.7
+
+
+def test_load_bundle_reads_a_scala_3_report(tmp_path):
+    report = tmp_path / "target" / "scala-3.3.4" / "coverage-report" / "cobertura.xml"
+    report.parent.mkdir(parents=True)
+    report.write_text(COBERTURA_SCALA3, encoding="utf-8")
+    assert list(load_bundle(tmp_path).lcov) == ["/proj/src/main/scala/demo/Calc.scala"]

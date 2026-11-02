@@ -464,19 +464,19 @@ def _remove_stale_scoverage(module: Path) -> None:
         _clean_dir(found)
 
 
-def _cover_scala2(root: Path, files: list[Path]) -> None:
+def _cover_scala(root: Path, files: list[Path]) -> None:
     modules = _modules_with(files, ".scala", "build.sbt", root)
     if not modules:
-        _warn("No build.sbt; skipping Scala2 coverage.")
+        _warn("No build.sbt; skipping Scala coverage.")
         return
     for module in modules:
         _remove_stale_scoverage(module)
         code = run_shell(_SBT, module)
         if code != 0:
             _warn(
-                f"Scala2 coverage exited {code} in {module}. "
+                f"Scala coverage exited {code} in {module}. "
                 "It needs the sbt-scoverage plugin in project/plugins.sbt. "
-                "Scala2 coverage will score 0%."
+                "Scala coverage will score 0%."
             )
 
 
@@ -618,6 +618,6 @@ def run_coverage(root: Path, files: list[Path], command: str | None) -> int:
         _cover_python(root, files)
     if "rust" in languages:
         _cover_rust(root, files)
-    if "scala2" in languages:
-        _cover_scala2(root, files)
+    if "scala" in languages:
+        _cover_scala(root, files)
     return 0
