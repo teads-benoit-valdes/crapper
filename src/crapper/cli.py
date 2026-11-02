@@ -76,7 +76,7 @@ Coverage, when it is produced:
   TypeScript   npm run coverage, Vitest's own LCOV, or c8 around npm test
   Rust         cargo llvm-cov, or cargo tarpaulin, in the nearest Cargo.toml
   Python       coverage.py LCOV, via pytest or unittest, per project
-  Scala       sbt-scoverage Cobertura XML, via sbt in the nearest build.sbt
+  Scala        sbt-scoverage Cobertura XML, via sbt in the nearest build.sbt
 
 uml-viewer joins .metrics/crap.edn on :namespace and :name.
   Clojure      the ns, and the defn name
@@ -85,7 +85,7 @@ uml-viewer joins .metrics/crap.edn on :namespace and :name.
   TypeScript   dotted module path, or module.Class for methods
   Rust         crate::module, or crate::module::Type for methods
   Python       dotted module path, or module.Class for methods
-  Scala       package.Type, or package.Outer.Inner for nested types
+  Scala        package.Type, or package.Outer.Inner for nested types
 """
 
 
