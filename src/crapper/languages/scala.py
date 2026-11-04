@@ -49,15 +49,6 @@ def _is_logic(data: bytes, node) -> bool:
     return operator is not None and node_text(data, operator) in _LOGIC
 
 
-def _inside_def(node) -> bool:
-    current = node.parent
-    while current is not None:
-        if current.type == "function_definition":
-            return True
-        current = current.parent
-    return False
-
-
 def _name(data: bytes, node) -> str | None:
     ident = child_of_type(node, *_NAME_TYPES)
     return node_text(data, ident) if ident is not None else None
@@ -105,13 +96,10 @@ def _end_line(data: bytes, node) -> int:
 
 
 def _record(data: bytes, node, leading: list[str], path: str) -> Function | None:
-    if node.type != "function_definition" or _inside_def(node):
-        return None
-    name = _name(data, node)
-    if name is None or child_of_type(node, "block", "=") is None:
+    if node.type != "function_definition":
         return None
     return Function(
-        name=name,
+        name=_name(data, node),
         namespace=".".join(part for part in [*leading, *_enclosing(data, node)] if part),
         complexity=complexity(
             node,

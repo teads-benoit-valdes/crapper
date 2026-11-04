@@ -560,12 +560,14 @@ def _merge_texts(paths: list[Path]) -> list[str]:
     return texts
 
 
+def nested_glob(root: Path, pattern: str) -> list[Path]:
+    """Matches in `root` and in its sub-directories, up to two levels down."""
+
+    return [*root.glob(pattern), *root.glob(f"*/{pattern}"), *root.glob(f"*/*/{pattern}")]
+
+
 def _cobertura_paths(root: Path) -> list[Path]:
-    pattern = "target/scala-*/coverage-report/cobertura.xml"
-    paths = list(root.glob(pattern))
-    paths.extend(root.glob(f"*/{pattern}"))
-    paths.extend(root.glob(f"*/*/{pattern}"))
-    return paths
+    return nested_glob(root, "target/scala-*/coverage-report/cobertura.xml")
 
 
 def _merge_lcov(root: Path) -> dict[str, dict[int, tuple[int, int]]]:

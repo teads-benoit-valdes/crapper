@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from crapper.coverage import nested_glob
 from crapper.discover import is_test_file, language_of
 
 _MAVEN = [
@@ -459,8 +460,7 @@ _SBT = ["sbt", "-batch", "clean", "coverage", "test", "coverageReport"]
 
 
 def _remove_stale_scoverage(module: Path) -> None:
-    pattern = "target/scala-*/coverage-report"
-    for found in [*module.glob(pattern), *module.glob(f"*/{pattern}"), *module.glob(f"*/*/{pattern}")]:
+    for found in nested_glob(module, "target/scala-*/coverage-report"):
         _clean_dir(found)
 
 
@@ -587,6 +587,16 @@ def _cover_rust(root: Path, files: list[Path]) -> None:
             _warn(f"Rust coverage exited {code} in {module}. Rust coverage will score 0%.")
 
 
+def _run_custom_coverage(root: Path, command: str) -> int:
+    code = run_shell(command, root)
+    if code != 0:
+        _warn(
+            f"Coverage command exited {code}. "
+            "Reports already on disk will not be read."
+        )
+    return code
+
+
 def run_coverage(root: Path, files: list[Path], command: str | None) -> int:
     """Generate coverage reports for the languages present in `files`.
 
@@ -597,13 +607,7 @@ def run_coverage(root: Path, files: list[Path], command: str | None) -> int:
 
     root = root.resolve()
     if command:
-        code = run_shell(command, root)
-        if code != 0:
-            _warn(
-                f"Coverage command exited {code}. "
-                "Reports already on disk will not be read."
-            )
-        return code
+        return _run_custom_coverage(root, command)
 
     languages = _languages_in(files)
     if "clojure" in languages:
