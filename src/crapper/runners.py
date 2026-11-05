@@ -15,6 +15,7 @@ from pathlib import Path
 
 from crapper.coverage import nested_glob
 from crapper.discover import is_test_file, language_of
+from crapper.sbt_setup import scoverage_files
 
 _MAVEN = [
     "mvn",
@@ -471,11 +472,12 @@ def _cover_scala(root: Path, files: list[Path]) -> None:
         return
     for module in modules:
         _remove_stale_scoverage(module)
-        code = run_shell(_SBT, module)
+        with scoverage_files(module):
+            code = run_shell(_SBT, module)
         if code != 0:
             _warn(
                 f"Scala coverage exited {code} in {module}. "
-                "It needs the sbt-scoverage plugin in project/plugins.sbt. "
+                "Check that the sbt-scoverage plugin resolves. "
                 "Scala coverage will score 0%."
             )
 

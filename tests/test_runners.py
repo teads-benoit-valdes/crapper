@@ -602,3 +602,112 @@ def test_a_failed_sbt_run_points_at_the_scoverage_plugin(tmp_path, monkeypatch, 
     assert "Scala coverage exited 1" in err
     assert "sbt-scoverage" in err
     assert "will score 0%" in err
+
+
+PLUGIN_FILE = "project/zz-crapper-scoverage.sbt"
+RELAX_FILE = "zz-crapper-coverage.sbt"
+
+
+def _tree(root: Path) -> set[str]:
+    return {path.relative_to(root).as_posix() for path in root.rglob("*")}
+
+
+def _scala_project(tmp_path, plugins=None):
+    _write(tmp_path, "build.sbt", 'scalaVersion := "2.13.18"\n')
+    if plugins is not None:
+        _write(tmp_path, "project/plugins.sbt", plugins)
+    return _write(tmp_path, "src/main/scala/A.scala", "object A\n")
+
+
+def _seen_during_run(monkeypatch, tmp_path, outcome=0):
+    seen = {}
+
+    def shell(command, cwd):
+        seen["files"] = _tree(tmp_path)
+        seen["plugin"] = (tmp_path / PLUGIN_FILE).read_text() if (tmp_path / PLUGIN_FILE).exists() else None
+        seen["relax"] = (tmp_path / RELAX_FILE).read_text() if (tmp_path / RELAX_FILE).exists() else None
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr("crapper.runners.run_shell", shell)
+    return seen
+
+
+def test_scala_adds_the_scoverage_plugin_and_lets_warnings_through_only_while_sbt_runs(
+    tmp_path, monkeypatch
+):
+    source = _scala_project(tmp_path)
+    before = _tree(tmp_path)
+    seen = _seen_during_run(monkeypatch, tmp_path)
+    run_coverage(tmp_path, [source], None)
+    assert 'addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.4.4")' in seen["plugin"]
+    assert "-Wconf" in seen["relax"]
+    assert "-Xfatal-warnings" in seen["relax"]
+    assert _tree(tmp_path) == before
+
+
+def test_scala_leaves_the_project_untouched_when_sbt_fails(tmp_path, monkeypatch):
+    source = _scala_project(tmp_path)
+    before = _tree(tmp_path)
+    _seen_during_run(monkeypatch, tmp_path, outcome=1)
+    run_coverage(tmp_path, [source], None)
+    assert _tree(tmp_path) == before
+
+
+def test_scala_leaves_the_project_untouched_when_interrupted(tmp_path, monkeypatch):
+    source = _scala_project(tmp_path)
+    before = _tree(tmp_path)
+    _seen_during_run(monkeypatch, tmp_path, outcome=KeyboardInterrupt())
+    with pytest.raises(KeyboardInterrupt):
+        run_coverage(tmp_path, [source], None)
+    assert _tree(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "where",
+    ["project/plugins.sbt", "project/other.sbt", "build.sbt"],
+)
+def test_scala_keeps_the_scoverage_plugin_the_build_already_has(tmp_path, monkeypatch, where):
+    source = _scala_project(tmp_path)
+    own = 'addSbtPlugin("org.scoverage" % "sbt-scoverage" % "2.0.0")\n'
+    _write(tmp_path, where, own)
+    before = _tree(tmp_path)
+    seen = _seen_during_run(monkeypatch, tmp_path)
+    run_coverage(tmp_path, [source], None)
+    assert seen["plugin"] is None
+    assert seen["relax"] is not None
+    assert (tmp_path / where).read_text() == own
+    assert _tree(tmp_path) == before
+
+
+def test_scala_creates_the_project_directory_only_for_the_run(tmp_path, monkeypatch):
+    source = _scala_project(tmp_path)
+    assert not (tmp_path / "project").exists()
+    seen = _seen_during_run(monkeypatch, tmp_path)
+    run_coverage(tmp_path, [source], None)
+    assert "project" in seen["files"]
+    assert not (tmp_path / "project").exists()
+
+
+def test_scala_keeps_what_sbt_wrote_into_an_existing_project_directory(tmp_path, monkeypatch):
+    source = _scala_project(tmp_path, plugins="// none\n")
+    monkeypatch.setattr(
+        "crapper.runners.run_shell",
+        lambda *_args: _write(tmp_path, "project/target/x.class", "x") and 0,
+    )
+    run_coverage(tmp_path, [source], None)
+    assert (tmp_path / "project/target/x.class").exists()
+    assert not (tmp_path / PLUGIN_FILE).exists()
+
+
+def test_scala_replaces_and_removes_files_a_killed_run_left_behind(tmp_path, monkeypatch):
+    source = _scala_project(tmp_path)
+    _write(tmp_path, PLUGIN_FILE, "stale\n")
+    _write(tmp_path, RELAX_FILE, "stale\n")
+    seen = _seen_during_run(monkeypatch, tmp_path)
+    run_coverage(tmp_path, [source], None)
+    assert "sbt-scoverage" in seen["plugin"]
+    assert "stale" not in seen["relax"]
+    assert not (tmp_path / PLUGIN_FILE).exists()
+    assert not (tmp_path / RELAX_FILE).exists()
